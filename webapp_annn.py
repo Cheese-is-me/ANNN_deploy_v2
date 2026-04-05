@@ -529,6 +529,23 @@ def get_required_variables(indicator_stts):
             all_vars.update(ind["Biến cần nhập"])
     return sorted(list(all_vars))
 
+def get_variables_with_stt(indicator_stts):
+    """Lấy danh sách các biến cần nhập kèm STT chỉ số, sắp xếp theo STT"""
+    var_info_list = []
+    for ind in INDICATORS_DATA:
+        if ind["STT"] in indicator_stts:
+            stt = ind["STT"]
+            chi_thi = ind["Chỉ thị"]
+            for var in ind["Biến cần nhập"]:
+                var_info_list.append({
+                    "STT": stt,
+                    "Chỉ thị": chi_thi,
+                    "Biến số": var
+                })
+    # Sắp xếp theo STT rồi theo tên biến
+    var_info_list.sort(key=lambda x: (x["STT"], x["Biến số"]))
+    return var_info_list
+
 # ============== TẢI DỮ LIỆU ==============
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -629,16 +646,20 @@ def main():
     # Lấy dữ liệu hiện có của xã
     existing_data = get_xa_row(df_data, selected_xa) if xa_list else {}
     
-    # Lấy danh sách biến cần nhập
-    required_vars = get_required_variables(selected_indicator_stts)
-    
     # ===== BẢNG DỮ LIỆU ĐẦU VÀO =====
     st.subheader("📝 Bảng dữ liệu đầu vào")
-    st.caption("Chỉnh sửa các giá trị trong bảng bên dưới. Kết quả sẽ tự động cập nhật.")
+    st.caption("Chỉnh sửa các giá trị trong bảng bên dưới. Các biến được sắp xếp theo chỉ số (STT). Kết quả sẽ tự động cập nhật.")
+    
+    # Lấy danh sách biến kèm theo STT chỉ số
+    vars_with_stt = get_variables_with_stt(selected_indicator_stts)
     
     # Tạo DataFrame cho bảng nhập liệu
     input_data = []
-    for var in required_vars:
+    for var_info in vars_with_stt:
+        var = var_info["Biến số"]
+        stt = var_info["STT"]
+        chi_thi = var_info["Chỉ thị"]
+        
         # Lấy giá trị từ dữ liệu có sẵn hoặc mặc định
         existing_val = existing_data.get(var, None)
         if pd.isna(existing_val) or existing_val == "":
@@ -650,6 +671,8 @@ def main():
                 existing_val = 0.0
         
         input_data.append({
+            "STT": stt,
+            "Chỉ thị": chi_thi,
             "Biến số": var,
             "Diễn giải": VARIABLE_INFO.get(var, ""),
             "Giá trị": existing_val
@@ -664,13 +687,15 @@ def main():
     edited_df = st.data_editor(
         df_input,
         column_config={
+            "STT": st.column_config.NumberColumn("STT", disabled=True, width="small"),
+            "Chỉ thị": st.column_config.TextColumn("Chỉ thị", disabled=True, width="medium"),
             "Biến số": st.column_config.TextColumn("Biến số", disabled=True, width="small"),
-            "Diễn giải": st.column_config.TextColumn("Diễn giải", disabled=True, width="large"),
+            "Diễn giải": st.column_config.TextColumn("Diễn giải", disabled=True, width="medium"),
             "Giá trị": st.column_config.NumberColumn("Giá trị", min_value=0, format="%.4f", width="small"),
         },
         hide_index=True,
         width="stretch",
-        height=400,
+        height=500,
         key=editor_key,
         num_rows="fixed"
     )
